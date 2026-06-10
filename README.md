@@ -22,9 +22,12 @@ Orchestrated by Dagster. Each pipeline has three assets:
 ## Project structure
 
 ```
-aqueduct-dagster-poc-v2/
+aqueduct-poc-bravo/
 ├── docker-compose.yml              # FROST + PostGIS
+├── pyproject.toml                  # dependencies and build config
+├── uv.lock                         # pinned dependency versions
 ├── .env.example                    # env var template — copy to .env
+├── .gitignore
 ├── .dlt/
 │   ├── config.toml                 # dlt non-secret config (bucket URL, API URLs, start dates)
 │   └── secrets.toml.example        # dlt secrets template — copy to secrets.toml
@@ -44,7 +47,7 @@ aqueduct-dagster-poc-v2/
 │   │   ├── assets/
 │   │   │   ├── ingest_hydrovu.py   # Dagster asset: raw_hydrovu_readings
 │   │   │   ├── ingest_cabq.py      # Dagster asset: raw_cabq_readings
-│   │   │   ├── transform_hydrovu.py# Dagster asset: canonical_bundles_hydrovu
+│   │   │   ├── transform_hydrovu.py # Dagster asset: canonical_bundles_hydrovu
 │   │   │   ├── transform_cabq.py   # Dagster asset: canonical_bundles_cabq
 │   │   │   └── load.py             # Dagster assets: frost_load_hydrovu, frost_load_cabq
 │   │   └── definitions.py          # Dagster entry point — jobs, schedules, asset registry
@@ -53,6 +56,7 @@ aqueduct-dagster-poc-v2/
 │       └── watermark_store.py      # FrostWatermarkStore — per-run dedup via Dagster context
 └── tests/
     ├── test_hydrovu_adapter.py
+    ├── test_hydrovu_dlt_pipeline.py
     └── test_cabq_adapter.py
 ```
 
@@ -123,7 +127,7 @@ Edit `.dlt/secrets.toml` and fill in your HydroVu `client_id` / `client_secret`.
 uv run pytest
 ```
 
-Tests are unit tests only — no GCS, FROST, or HydroVu API required. All 27 tests should pass before you proceed.
+Tests are unit tests only — no GCS, FROST, or HydroVu API required. All tests should pass before you proceed.
 
 ---
 
