@@ -26,7 +26,8 @@ API endpoints confirmed:
   - Auth:      POST https://hydrovu.com/public-api/oauth/token
   - Locations: GET  https://www.hydrovu.com/public-api/v1/locations/list
   - Readings:  GET  https://www.hydrovu.com/public-api/v1/locations/{id}/data?startTime={unix_ts}
-  - Pagination: API returns all data on page 0; X-ISI-Start-Page header is ignored by server
+  - Pagination: X-ISI-Start-Page="" on first request; response carries X-ISI-Next-Page opaque
+                cursor token; pass it verbatim on the next request; stop when absent or empty
   - Token refresh: client credentials tokens have a finite TTL; 401 triggers one automatic retry
 """
 
@@ -86,46 +87,89 @@ def _auth_headers(token: str) -> dict:
 
 
 def _fetch_locations(api_base_url: str, tm: _TokenManager) -> list[dict]:
-    """Fetches all locations in a single call (API returns all on page 0)."""
-    resp = httpx.get(
-        f"{api_base_url}/locations/list",
-        headers={**_auth_headers(tm.get()), "X-ISI-Start-Page": "0"},
-        timeout=30,
-    )
-    if resp.status_code == 401:
-        logger.warning("401 on /locations/list — refreshing token and retrying")
+    """Fetches all locations, walking cursor-based pages (same pattern as location data)."""
+    all_locations: list[dict] = []
+    page_cursor: str = ""
+
+    while True:
         resp = httpx.get(
             f"{api_base_url}/locations/list",
-            headers={**_auth_headers(tm.force_refresh()), "X-ISI-Start-Page": "0"},
+            headers={**_auth_headers(tm.get()), "X-ISI-Start-Page": page_cursor},
             timeout=30,
         )
-    resp.raise_for_status()
-    return resp.json()
+        if resp.status_code == 401:
+            logger.warning("401 on /locations/list — refreshing token and retrying")
+            resp = httpx.get(
+                f"{api_base_url}/locations/list",
+                headers={**_auth_headers(tm.force_refresh()), "X-ISI-Start-Page": page_cursor},
+                timeout=30,
+            )
+        resp.raise_for_status()
+        all_locations.extend(resp.json())
+
+        next_cursor = resp.headers.get("X-ISI-Next-Page", "")
+        if not next_cursor:
+            break
+        page_cursor = next_cursor
+
+    return all_locations
 
 
 def _fetch_location_data(
     api_base_url: str, location_id: int, start_time: int, tm: _TokenManager
 ) -> dict | None:
-    """Fetches readings for one location. Returns None on 404/500. Retries once on 401."""
-    resp = httpx.get(
-        f"{api_base_url}/locations/{location_id}/data",
-        headers={**_auth_headers(tm.get()), "X-ISI-Start-Page": "0"},
-        params={"startTime": start_time},
-        timeout=120,
-    )
-    if resp.status_code == 401:
-        logger.warning("401 on location %s — refreshing token and retrying", location_id)
+    """
+    Fetches all readings for one location, walking cursor-based pages.
+    Returns None on 404/500. Retries once on 401 per page.
+
+    Pagination: X-ISI-Start-Page="" on the first request, then pass the
+    X-ISI-Next-Page cursor token from each response verbatim. Stop when
+    X-ISI-Next-Page is absent or empty (~20 readings per page, ~2 days each).
+    """
+    all_data: dict | None = None
+    page_cursor: str = ""
+
+    while True:
         resp = httpx.get(
             f"{api_base_url}/locations/{location_id}/data",
-            headers={**_auth_headers(tm.force_refresh()), "X-ISI-Start-Page": "0"},
+            headers={**_auth_headers(tm.get()), "X-ISI-Start-Page": page_cursor},
             params={"startTime": start_time},
             timeout=120,
         )
-    if resp.status_code in (404, 500):
-        logger.warning("Location %s returned %s — skipping", location_id, resp.status_code)
-        return None
-    resp.raise_for_status()
-    return resp.json()
+        if resp.status_code == 401:
+            logger.warning("401 on location %s — refreshing token and retrying", location_id)
+            resp = httpx.get(
+                f"{api_base_url}/locations/{location_id}/data",
+                headers={**_auth_headers(tm.force_refresh()), "X-ISI-Start-Page": page_cursor},
+                params={"startTime": start_time},
+                timeout=120,
+            )
+        if resp.status_code in (404, 500):
+            logger.warning("Location %s returned %s — skipping", location_id, resp.status_code)
+            return None
+        resp.raise_for_status()
+
+        page_data = resp.json()
+
+        if all_data is None:
+            all_data = page_data
+        else:
+            existing = {p["parameterId"]: p for p in all_data.get("parameters", [])}
+            for param in page_data.get("parameters", []):
+                pid = param["parameterId"]
+                if pid in existing:
+                    existing[pid]["readings"].extend(param["readings"])
+                else:
+                    all_data.setdefault("parameters", []).append(param)
+
+        next_cursor = resp.headers.get("X-ISI-Next-Page", "")
+        if not next_cursor:
+            break
+        page_cursor = next_cursor
+
+    total = sum(len(p.get("readings", [])) for p in (all_data or {}).get("parameters", []))
+    logger.info("Location %s: fetched %d readings across all pages", location_id, total)
+    return all_data
 
 
 @dlt.source(name="hydrovu")

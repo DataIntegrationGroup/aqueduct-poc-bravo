@@ -22,6 +22,7 @@ import os
 from dagster import AssetExecutionContext, asset
 
 from aqueduct_dagster.canonical.canonical_model import CanonicalBundle, CanonicalObservation
+from aqueduct_dagster.defs.assets.transform_hydrovu import HydroVuTransformResult, commit_watermark
 from aqueduct_dagster.loader.frost_loader import FrostStaClientLoader, ObservationRecord
 from aqueduct_dagster.loader.watermark_store import FrostWatermarkStore
 
@@ -89,9 +90,15 @@ def _frost_load(context: AssetExecutionContext, bundles: list[CanonicalBundle]) 
 )
 def frost_load_hydrovu(
     context: AssetExecutionContext,
-    canonical_bundles_hydrovu: list[CanonicalBundle],
+    canonical_bundles_hydrovu: HydroVuTransformResult,
 ) -> None:
-    _frost_load(context, canonical_bundles_hydrovu)
+    _frost_load(context, canonical_bundles_hydrovu.bundles)
+    if canonical_bundles_hydrovu.max_load_id is not None:
+        commit_watermark(canonical_bundles_hydrovu.max_load_id)
+        context.log.info(
+            "Transform watermark committed after FROST success: max_load_id=%s",
+            canonical_bundles_hydrovu.max_load_id,
+        )
 
 
 @asset(
