@@ -3,18 +3,22 @@ pipeline/hydrovu_dlt_pipeline.py
 
 dlt pipeline for HydroVu raw ingestion.
 
-Follows the same pattern as cabq_dlt_pipeline.py (and all future sources).
-  - @dlt.source:    defines the HydroVu source, reads creds from dlt.secrets
-  - @dlt.resource:  incremental cursor on timestamp field, yields one flat
-                    record per parameter per reading per location
-  - build_pipeline(): filesystem destination → GCS under raw/pvacd/
+Two resources returned from hydrovu_source():
 
-What dlt does here:
-  - Calls the HydroVu API and fetches readings per location
-  - Handles incremental loading via dlt.sources.incremental (cursor = timestamp)
-  - Writes raw parquet to GCS (filesystem destination) under:
-      gs://<bucket>/raw/pvacd/hydrovu_readings/
-  - Stores cursor state (last fetched timestamp) alongside the data in GCS
+  hydrovu_locations  (write_disposition="replace")
+    Fetches GET /locations/list on every run and fully replaces the parquet.
+    One row per location: id, name, description, latitude, longitude.
+    Acts as a reference table — rename in HydroVu → latest name in GCS.
+    Written to: gs://<bucket>/raw_pvacd/hydrovu_locations/
+
+  hydrovu_readings   (write_disposition="append", incremental cursor)
+    Fetches readings per location since the last run's max timestamp.
+    One row per (location, parameter, reading) — location metadata is NOT
+    embedded; join to hydrovu_locations on location_id at transform time.
+    Written to: gs://<bucket>/raw_pvacd/hydrovu_readings/
+
+_TokenManager is created once in hydrovu_source() and passed to both
+resources so a single token covers the full run.
 
 This module is NOT a Dagster asset — it is called by defs/assets/ingest_hydrovu.py
 
@@ -182,20 +186,45 @@ def hydrovu_source(
 ):
     """
     Reads credentials and config from dlt.secrets/dlt.config under [hydrovu].
-    Converts initial_start_date (YYYY-MM-DD) to a Unix timestamp for the API.
+    Creates a single _TokenManager shared by both resources so the token is
+    fetched once and reused across the full run.
     """
     start_ts = int(
         datetime.strptime(initial_start_date, "%Y-%m-%d")
         .replace(tzinfo=timezone.utc)
         .timestamp()
     )
-    return hydrovu_readings(
-        client_id=client_id,
-        client_secret=client_secret,
-        api_base_url=api_base_url,
-        token_url=token_url,
-        start_ts=start_ts,
+    tm = _TokenManager(token_url, client_id, client_secret)
+    return (
+        hydrovu_locations(api_base_url=api_base_url, tm=tm),
+        hydrovu_readings(api_base_url=api_base_url, start_ts=start_ts, tm=tm),
     )
+
+
+@dlt.resource(
+    name="hydrovu_locations",
+    write_disposition="replace",
+)
+def hydrovu_locations(api_base_url: str, tm: _TokenManager) -> Iterator[dict]:
+    """
+    Yields one record per location from GET /locations/list.
+    write_disposition="replace" ensures the parquet is fully refreshed on
+    every run, so renames or removals in HydroVu are reflected immediately.
+
+    Record shape:
+      id          — HydroVu location integer ID (join key for hydrovu_readings)
+      name        — well name (e.g. "Bartlett Level Troll")
+      description — well number (e.g. "827276")
+      latitude, longitude
+    """
+    for location in _fetch_locations(api_base_url, tm):
+        yield {
+            "id": location["id"],
+            "name": location["name"],
+            "description": location["description"],
+            "latitude": location["gps"]["latitude"],
+            "longitude": location["gps"]["longitude"],
+        }
 
 
 @dlt.resource(
@@ -204,11 +233,9 @@ def hydrovu_source(
     primary_key="reading_id",
 )
 def hydrovu_readings(
-    client_id: str,
-    client_secret: str,
     api_base_url: str,
-    token_url: str,
     start_ts: int,
+    tm: _TokenManager,
     updated_at: dlt.sources.incremental[int] = dlt.sources.incremental(
         "timestamp",
         initial_value=0,
@@ -216,26 +243,22 @@ def hydrovu_readings(
 ) -> Iterator[dict]:
     """
     Yields one flat record per (location, parameter, reading).
+    Location metadata is NOT embedded — join to hydrovu_locations on location_id.
 
     Incremental: uses updated_at.last_value (max timestamp from last run) as
     startTime for the API call. On first run, falls back to start_ts from config.
     dlt additionally deduplicates on primary_key=reading_id.
 
     Record shape:
-      reading_id        — "{location_id}_{parameter_id}_{timestamp}"
-      location_id       — HydroVu location integer ID
-      location_name     — well name (e.g. "Bartlett-827276")
-      location_description — well number (e.g. "827276")
-      latitude, longitude
-      timestamp         — Unix epoch seconds (dlt cursor field)
-      parameter_id      — HydroVu param code (e.g. "4" = Depth to Water, "1" = Temperature, "33" = Battery Level)
-      unit_id           — HydroVu unit code (e.g. "241" = feet)
-      value             — float measurement
+      reading_id   — "{location_id}_{parameter_id}_{timestamp}"
+      location_id  — HydroVu location integer ID (FK → hydrovu_locations.id)
+      timestamp    — Unix epoch seconds (dlt cursor field)
+      parameter_id — HydroVu param code (e.g. "4"=DTW, "1"=Temperature, "33"=Battery)
+      unit_id      — HydroVu unit code (e.g. "35"=feet)
+      value        — float measurement
     """
     api_start = max(updated_at.last_value or 0, start_ts)
     logger.info("HydroVu fetch starting from Unix timestamp %s", api_start)
-
-    tm = _TokenManager(token_url, client_id, client_secret)
 
     for location in _fetch_locations(api_base_url, tm):
         loc_id = location["id"]
@@ -249,10 +272,6 @@ def hydrovu_readings(
                 yield {
                     "reading_id": f"{loc_id}_{param['parameterId']}_{reading['timestamp']}",
                     "location_id": loc_id,
-                    "location_name": location["name"],
-                    "location_description": location["description"],
-                    "latitude": location["gps"]["latitude"],
-                    "longitude": location["gps"]["longitude"],
                     "timestamp": reading["timestamp"],
                     "parameter_id": param["parameterId"],
                     "unit_id": param["unitId"],
