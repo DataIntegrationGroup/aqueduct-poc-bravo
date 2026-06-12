@@ -43,6 +43,20 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
+# PVACD wells with DTW data — skip others to avoid slow 404s on /locations/{id}/data
+PVACD_LOCATION_IDS: frozenset[int] = frozenset({
+    4586726273318912,  # Transwestern Level Troll
+    4745648669458432,  # Bartlett Level Troll
+    4803999894339584,  # Cottonwood Level Troll
+    4847162637942784,  # Berrendo-Smith Level Troll
+    5597309948919808,  # LFD Level Troll
+    5647456719142912,  # Zumwalt Level Troll
+    5830701895778304,  # Greenfield Level Troll
+    6054555505917952,  # Poe Corn Level Troll
+    6256156690612224,  # Artesia A Level Troll
+    6505900885147648,  # Orchard Park Level Troll
+})
+
 
 class _TokenManager:
     """Fetches and caches a client-credentials token; re-fetches on expiry or 401."""
@@ -239,6 +253,9 @@ def hydrovu_readings(
 
     for location in _fetch_locations(api_base_url, tm):
         loc_id = location["id"]
+        if loc_id not in PVACD_LOCATION_IDS:
+            logger.debug("Skipping location %s (%s) — not in PVACD allowlist", loc_id, location["name"])
+            continue
         logger.info("Fetching readings for location %s (%s)", loc_id, location["name"])
 
         data = _fetch_location_data(api_base_url, loc_id, api_start, tm)

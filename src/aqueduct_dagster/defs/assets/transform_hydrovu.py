@@ -214,7 +214,7 @@ def canonical_bundles_hydrovu(
     confirms success, so a FROST failure leaves the watermark unadvanced and the
     next run retries the same data.
     """
-    bucket_url = "gs://aqueduct-poc-bravo-pvacd"
+    bucket_url = "gs://aqueduct-poc-bravo-pvacd-test"
     bucket = bucket_url.replace("gs://", "")
 
     creds = _gcs_credentials()
