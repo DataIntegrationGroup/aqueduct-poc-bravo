@@ -1,6 +1,6 @@
 # Aqueduct
 
-[![CI](https://github.com/DataIntegrationGroup/aqueduct-poc-bravo/actions/workflows/ci.yml/badge.svg)](https://github.com/DataIntegrationGroup/aqueduct-poc-bravo/actions/workflows/ci.yml)
+[![CI](https://github.com/DataIntegrationGroup/Aqueduct/actions/workflows/ci.yml/badge.svg)](https://github.com/DataIntegrationGroup/Aqueduct/actions/workflows/ci.yml)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![Checked with mypy](https://www.mypy-lang.org/static/mypy_badge.svg)](https://mypy-lang.org/)
 
