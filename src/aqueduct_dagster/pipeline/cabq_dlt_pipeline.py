@@ -22,6 +22,8 @@ Add CABQ secrets block to .dlt/secrets.toml if auth is required:
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterator
+from typing import Any
 
 import dlt
 
@@ -32,10 +34,10 @@ logger = logging.getLogger(__name__)
 def cabq_source(
     api_base_url: str = dlt.config.value,
     initial_start_date: str = dlt.config.value,
-):
+) -> Any:
     # TODO: parse initial_start_date to a start timestamp (same pattern as hydrovu_source)
     # TODO: return cabq_readings resource
-    pass
+    raise NotImplementedError("cabq_source is not implemented yet")
 
 
 @dlt.resource(
@@ -46,11 +48,12 @@ def cabq_source(
 def cabq_readings(
     api_base_url: str,
     start_ts: int,
-    updated_at: dlt.sources.incremental[int] = dlt.sources.incremental(
+    # dlt detects the incremental cursor via this default — idiomatic, so B008 is expected.
+    updated_at: dlt.sources.incremental[int] = dlt.sources.incremental(  # noqa: B008
         "timestamp",
         initial_value=0,
     ),
-):
+) -> Iterator[dict]:
     """
     Yields one flat record per reading per location.
     Incremental cursor tracks timestamp field (Unix epoch int — same as hydrovu_readings).
@@ -68,7 +71,7 @@ def cabq_readings(
     # TODO: fetch CABQ stations/locations from CKAN API
     # TODO: fetch readings per location using max(updated_at.last_value, start_ts) as start
     # TODO: yield one flat record per reading (no location metadata — join at transform time)
-    pass
+    raise NotImplementedError("cabq_readings is not implemented yet")
 
 
 def build_pipeline() -> dlt.Pipeline:

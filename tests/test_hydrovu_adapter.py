@@ -23,20 +23,17 @@ Parameter IDs (confirmed June 2026):
   "33" = Battery Level (skipped)
 """
 
-from datetime import timezone
-
-import pytest
+from datetime import UTC
 
 from aqueduct_dagster.adapters.hydrovu_adapter import (
-    DTW_PARAMETER_ID,
     METRES_TO_FEET,
     HydroVuAdapter,
 )
 
 # ── Shared test data ──────────────────────────────────────────────────────────
 
-DTW_READING     = {"parameter_id": "4",  "unit_id": "35",  "timestamp": 1780704000, "value": 10.0}
-TEMP_READING    = {"parameter_id": "1",  "unit_id": "1",   "timestamp": 1780704000, "value": 22.5}
+DTW_READING = {"parameter_id": "4", "unit_id": "35", "timestamp": 1780704000, "value": 10.0}
+TEMP_READING = {"parameter_id": "1", "unit_id": "1", "timestamp": 1780704000, "value": 22.5}
 BATTERY_READING = {"parameter_id": "33", "unit_id": "241", "timestamp": 1780704000, "value": 54.0}
 
 
@@ -59,6 +56,7 @@ def _record(
 
 
 # ── to_thing ──────────────────────────────────────────────────────────────────
+
 
 class TestToThing:
     def test_external_key_uses_integer_location_id(self):
@@ -111,6 +109,7 @@ class TestToThing:
 
 # ── to_observations ───────────────────────────────────────────────────────────
 
+
 class TestToObservations:
     def test_returns_only_dtw_readings(self):
         rec = _record(readings=[DTW_READING, TEMP_READING, BATTERY_READING])
@@ -137,7 +136,7 @@ class TestToObservations:
     def test_phenomenon_time_is_utc(self):
         rec = _record(readings=[DTW_READING])
         obs = HydroVuAdapter([rec]).to_observations(rec)
-        assert obs[0].phenomenon_time.tzinfo == timezone.utc
+        assert obs[0].phenomenon_time.tzinfo == UTC
 
     def test_phenomenon_time_correct_value(self):
         rec = _record(readings=[{**DTW_READING, "timestamp": 1780704000}])
@@ -160,6 +159,7 @@ class TestToObservations:
 
 
 # ── _build_datastreams ────────────────────────────────────────────────────────
+
 
 class TestBuildDatastreams:
     def _make_thing(self):
@@ -193,6 +193,7 @@ class TestBuildDatastreams:
 
 # ── run (end-to-end) ──────────────────────────────────────────────────────────
 
+
 class TestRun:
     def test_one_bundle_per_location(self):
         records = [
@@ -203,7 +204,9 @@ class TestRun:
         assert len(bundles) == 2
 
     def test_bundle_observations_keyed_by_datastream(self):
-        rec = _record(location_id=4745648669458432, location_description="827276", readings=[DTW_READING])
+        rec = _record(
+            location_id=4745648669458432, location_description="827276", readings=[DTW_READING]
+        )
         bundles = list(HydroVuAdapter([rec]).run())
         assert "pvacd-4745648669458432-dtw" in bundles[0].observations
 

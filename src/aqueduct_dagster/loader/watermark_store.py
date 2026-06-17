@@ -48,13 +48,12 @@ class InMemoryWatermarkStore(WatermarkStore):
 
 
 class FrostWatermarkStore(WatermarkStore):
-
     def __init__(self, context: AssetExecutionContext) -> None:
         self._context = context
         self._cache: dict[str, datetime] = {}
 
     def get(self, datastream_key: str) -> datetime | None:
-         # Check in-memory cache first (within a single run)
+        # Check in-memory cache first (within a single run)
         if datastream_key in self._cache:
             return self._cache[datastream_key]
         # TODO: read persisted watermark from Dagster asset metadata / Postgres / GCS

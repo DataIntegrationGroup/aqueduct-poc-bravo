@@ -1,4 +1,4 @@
-from .frost_loader import FrostStaClientLoader, FrostLoader, ObservationRecord, LoadResult
+from .frost_loader import FrostLoader, FrostStaClientLoader, LoadResult, ObservationRecord
 from .watermark_store import FrostWatermarkStore, InMemoryWatermarkStore, WatermarkStore
 
 __all__ = [

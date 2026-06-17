@@ -1,5 +1,9 @@
 # Aqueduct
 
+[![CI](https://github.com/DataIntegrationGroup/aqueduct-poc-bravo/actions/workflows/ci.yml/badge.svg)](https://github.com/DataIntegrationGroup/aqueduct-poc-bravo/actions/workflows/ci.yml)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+[![Checked with mypy](https://www.mypy-lang.org/static/mypy_badge.svg)](https://mypy-lang.org/)
+
 Dagster + dlt + GCS + FROST SensorThings
 
 Two independent source pipelines, each running on its own schedule:
@@ -127,6 +131,21 @@ uv run pytest
 ```
 
 Tests are unit tests only — no GCS, FROST, or HydroVu API required. All tests should pass before you proceed.
+
+---
+
+## Linting, typing, and tests
+
+Formatting (`ruff format`), linting (`ruff`), and type checking (`mypy src`) run in
+pre-commit hooks and in [GitHub Actions](.github/workflows/ci.yml) on PRs to `staging`
+and `main`, alongside the pytest suite.
+
+```bash
+uv sync --group dev
+uv run pre-commit install          # one-time: enable the git hook
+uv run pre-commit run --all-files  # run all hooks manually
+uv run pytest --cov=src/aqueduct_dagster
+```
 
 ---
 

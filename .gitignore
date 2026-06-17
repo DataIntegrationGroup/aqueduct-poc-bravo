@@ -15,3 +15,11 @@ dagster_home/
 dist/
 *.egg-info/
 scripts/
+
+# test / type-check artifacts
+.coverage
+.pytest_cache/
+.mypy_cache/
+
+# JetBrains IDE
+.idea/

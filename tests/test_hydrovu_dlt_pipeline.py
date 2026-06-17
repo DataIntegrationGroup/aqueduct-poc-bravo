@@ -13,17 +13,16 @@ Covers:
 from __future__ import annotations
 
 import time
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from aqueduct_dagster.pipeline.hydrovu_dlt_pipeline import (
-    _TokenManager,
     _auth_headers,
     _fetch_location_data,
     _fetch_locations,
+    _TokenManager,
 )
-
 
 # ── Fixtures / shared test data ───────────────────────────────────────────────
 
@@ -56,6 +55,9 @@ def _mock_resp(status_code: int, body=None) -> MagicMock:
     """Build a fake httpx response."""
     resp = MagicMock()
     resp.status_code = status_code
+    # Real httpx responses expose headers as a mapping; without this the cursor
+    # pagination loop reads a truthy MagicMock for X-ISI-Next-Page and never ends.
+    resp.headers = {}
     resp.json.return_value = body if body is not None else {}
     if status_code >= 400:
         resp.raise_for_status.side_effect = Exception(f"HTTP {status_code}")
@@ -74,6 +76,7 @@ def _make_tm(token: str = "tok-abc") -> _TokenManager:
 
 # ── _auth_headers ─────────────────────────────────────────────────────────────
 
+
 class TestAuthHeaders:
     def test_includes_bearer_token(self):
         h = _auth_headers("my-token")
@@ -85,6 +88,7 @@ class TestAuthHeaders:
 
 
 # ── _TokenManager ─────────────────────────────────────────────────────────────
+
 
 class TestTokenManager:
     def test_get_fetches_token_on_first_call(self):
@@ -151,17 +155,20 @@ class TestTokenManager:
 
 # ── _fetch_locations ──────────────────────────────────────────────────────────
 
+
 class TestFetchLocations:
     def test_returns_list_on_success(self):
         with patch("httpx.get", return_value=_mock_resp(200, LOCATIONS_RESPONSE)):
             result = _fetch_locations("https://api", _make_tm())
         assert result == LOCATIONS_RESPONSE
 
-    def test_sends_page_zero_header(self):
+    def test_sends_empty_start_page_header(self):
+        # First request sends X-ISI-Start-Page="" (empty cursor); the response's
+        # X-ISI-Next-Page token drives subsequent pages.
         with patch("httpx.get", return_value=_mock_resp(200, LOCATIONS_RESPONSE)) as mock_get:
             _fetch_locations("https://api", _make_tm())
         headers = mock_get.call_args[1]["headers"]
-        assert headers["X-ISI-Start-Page"] == "0"
+        assert headers["X-ISI-Start-Page"] == ""
 
     def test_sends_bearer_token(self):
         with patch("httpx.get", return_value=_mock_resp(200, LOCATIONS_RESPONSE)) as mock_get:
@@ -204,6 +211,7 @@ class TestFetchLocations:
 
 
 # ── _fetch_location_data ──────────────────────────────────────────────────────
+
 
 class TestFetchLocationData:
     def test_returns_data_on_success(self):

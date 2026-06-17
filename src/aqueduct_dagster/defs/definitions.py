@@ -19,22 +19,24 @@ from dagster import (
 )
 
 from aqueduct_dagster.defs.assets import (
-    ingest_hydrovu,
     ingest_cabq,
-    transform_hydrovu,
-    transform_cabq,
+    ingest_hydrovu,
     load,
+    transform_cabq,
+    transform_hydrovu,
 )
 
 # ── Load all assets ───────────────────────────────────────────────────────────
 
-all_assets = load_assets_from_modules([
-    ingest_hydrovu,
-    ingest_cabq,
-    transform_hydrovu,
-    transform_cabq,
-    load,
-])
+all_assets = load_assets_from_modules(
+    [
+        ingest_hydrovu,
+        ingest_cabq,
+        transform_hydrovu,
+        transform_cabq,
+        load,
+    ]
+)
 
 # ── Jobs — one per source ─────────────────────────────────────────────────────
 

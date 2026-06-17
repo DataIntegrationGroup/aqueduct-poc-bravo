@@ -72,19 +72,26 @@ def _frost_load(context: AssetExecutionContext, bundles: list[CanonicalBundle]) 
 
             context.log.info(
                 "Datastream %s (FROST id=%s): posted=%d skipped=%d watermark=%s",
-                datastream.external_key, ds_id,
-                result.posted, result.skipped, result.new_watermark,
+                datastream.external_key,
+                ds_id,
+                result.posted,
+                result.skipped,
+                result.new_watermark,
             )
 
     context.log.info(
         "FROST load complete: %d bundle(s), %d posted, %d skipped",
-        len(bundles), total_posted, total_skipped,
+        len(bundles),
+        total_posted,
+        total_skipped,
     )
-    context.add_output_metadata({
-        "bundles_loaded": MetadataValue.int(len(bundles)),
-        "observations_posted": MetadataValue.int(total_posted),
-        "observations_skipped": MetadataValue.int(total_skipped),
-    })
+    context.add_output_metadata(
+        {
+            "bundles_loaded": MetadataValue.int(len(bundles)),
+            "observations_posted": MetadataValue.int(total_posted),
+            "observations_skipped": MetadataValue.int(total_skipped),
+        }
+    )
 
 
 @asset(
