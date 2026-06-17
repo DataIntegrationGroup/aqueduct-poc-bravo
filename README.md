@@ -1,6 +1,6 @@
-# Aqueduct-POC-Bravo
+# Aqueduct
 
-Aqueduct POC B — Dagster + dlt + GCS + FROST SensorThings
+Dagster + dlt + GCS + FROST SensorThings
 
 Two independent source pipelines, each running on its own schedule:
 
@@ -22,7 +22,7 @@ Orchestrated by Dagster. Each pipeline has three assets:
 ## Project structure
 
 ```
-aqueduct-poc-bravo/
+Aqueduct/
 ├── docker-compose.yml              # FROST + PostGIS
 ├── pyproject.toml                  # dependencies and build config
 ├── uv.lock                         # pinned dependency versions
@@ -79,8 +79,8 @@ aqueduct-poc-bravo/
 ### 1. Clone the branch
 
 ```bash
-git clone https://github.com/your-org/aqueduct-poc-bravo.git
-cd aqueduct-poc-bravo
+git clone https://github.com/DataIntegrationGroup/Aqueduct.git
+cd Aqueduct
 ```
 
 ---
