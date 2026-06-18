@@ -6,6 +6,8 @@
 
 Dagster + dlt + GCS + FROST SensorThings
 
+**Contributing:** see [CONTRIBUTING.md](CONTRIBUTING.md) for branching, PRs, and releases.
+
 Two independent source pipelines, each running on its own schedule:
 
 ```
@@ -137,8 +139,8 @@ Tests are unit tests only — no GCS, FROST, or HydroVu API required. All tests 
 ## Linting, typing, and tests
 
 Formatting (`ruff format`), linting (`ruff`), and type checking (`mypy src`) run in
-pre-commit hooks and in [GitHub Actions](.github/workflows/ci.yml) on PRs to `staging`
-and `main`, alongside the pytest suite.
+pre-commit hooks and in [GitHub Actions](.github/workflows/ci.yml) on PRs to `main`,
+alongside the pytest suite.
 
 ```bash
 uv sync --group dev

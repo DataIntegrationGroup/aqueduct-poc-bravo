@@ -1,0 +1,10 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.schema.json",
+  "packages": {
+    ".": {
+      "release-type": "python",
+      "package-name": "Aqueduct",
+      "changelog-path": "CHANGELOG.md"
+    }
+  }
+}
