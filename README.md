@@ -222,6 +222,14 @@ dlt tracks a cursor (`timestamp` field) per source. On first run it fetches from
 using [Conventional Commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`,
 `chore:`, `docs:`, etc.).
 
+**PR titles must be conventional commits** — a [pr-title-lint](.github/workflows/pr-title-lint.yml)
+workflow enforces this on every PR. Put the Jira ticket in the **branch name**, not the PR title.
+
+| | Example |
+|---|---|
+| Branch | `ST2DAT-100-add-release-please` |
+| PR title | `chore(ci): add release-please` |
+
 [release-please](https://github.com/googleapis/release-please) runs on every push to
 `main` and maintains an open **Release PR** with version bumps and a generated
 [CHANGELOG.md](CHANGELOG.md). Merge that PR to cut a release — it tags
