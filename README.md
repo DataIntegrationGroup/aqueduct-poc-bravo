@@ -137,8 +137,8 @@ Tests are unit tests only — no GCS, FROST, or HydroVu API required. All tests 
 ## Linting, typing, and tests
 
 Formatting (`ruff format`), linting (`ruff`), and type checking (`mypy src`) run in
-pre-commit hooks and in [GitHub Actions](.github/workflows/ci.yml) on PRs to `staging`
-and `main`, alongside the pytest suite.
+pre-commit hooks and in [GitHub Actions](.github/workflows/ci.yml) on PRs to `main`,
+alongside the pytest suite.
 
 ```bash
 uv sync --group dev
@@ -215,3 +215,14 @@ dlt tracks a cursor (`timestamp` field) per source. On first run it fetches from
 `hydrovu_pipeline` and `cabq_pipeline` are completely independent Dagster jobs. Each has its own schedule and its own terminal load asset (`frost_load_hydrovu` / `frost_load_cabq`). Running one never triggers or blocks the other.
 
 ---
+
+## Releasing
+
+`main` is the trunk branch. Feature branches merge into `main` via squash-merge PRs
+using [Conventional Commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`,
+`chore:`, `docs:`, etc.).
+
+[release-please](https://github.com/googleapis/release-please) runs on every push to
+`main` and maintains an open **Release PR** with version bumps and a generated
+[CHANGELOG.md](CHANGELOG.md). Merge that PR to cut a release — it tags
+`vX.Y.Z` and creates a GitHub Release.

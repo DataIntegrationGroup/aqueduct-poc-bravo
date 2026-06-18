@@ -6,6 +6,8 @@ __pycache__/
 .env
 # service account key files — never commit
 *.json
+!release-please-config.json
+!.release-please-manifest.json
 .dlt/secrets.toml
 .dlt/.pipelines/
 dagster_home/
