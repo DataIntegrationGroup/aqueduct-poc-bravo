@@ -39,8 +39,9 @@ from __future__ import annotations
 
 import logging
 import time
-from datetime import datetime, timezone
-from typing import Iterator
+from collections.abc import Iterator
+from datetime import UTC, datetime
+from typing import Any
 
 import dlt
 import httpx
@@ -48,18 +49,20 @@ import httpx
 logger = logging.getLogger(__name__)
 
 # PVACD wells with DTW data — skip others to avoid slow 404s on /locations/{id}/data
-PVACD_LOCATION_IDS: frozenset[int] = frozenset({
-    4586726273318912,  # Transwestern Level Troll
-    4745648669458432,  # Bartlett Level Troll
-    4803999894339584,  # Cottonwood Level Troll
-    4847162637942784,  # Berrendo-Smith Level Troll
-    5597309948919808,  # LFD Level Troll
-    5647456719142912,  # Zumwalt Level Troll
-    5830701895778304,  # Greenfield Level Troll
-    6054555505917952,  # Poe Corn Level Troll
-    6256156690612224,  # Artesia A Level Troll
-    6505900885147648,  # Orchard Park Level Troll
-})
+PVACD_LOCATION_IDS: frozenset[int] = frozenset(
+    {
+        4586726273318912,  # Transwestern Level Troll
+        4745648669458432,  # Bartlett Level Troll
+        4803999894339584,  # Cottonwood Level Troll
+        4847162637942784,  # Berrendo-Smith Level Troll
+        5597309948919808,  # LFD Level Troll
+        5647456719142912,  # Zumwalt Level Troll
+        5830701895778304,  # Greenfield Level Troll
+        6054555505917952,  # Poe Corn Level Troll
+        6256156690612224,  # Artesia A Level Troll
+        6505900885147648,  # Orchard Park Level Troll
+    }
+)
 
 
 class _TokenManager:
@@ -140,7 +143,9 @@ def _fetch_locations(api_base_url: str, tm: _TokenManager) -> list[dict]:
             break
         page_cursor = next_cursor
 
-    logger.info("Location list complete: %d locations across %d pages", len(all_locations), page_num)
+    logger.info(
+        "Location list complete: %d locations across %d pages", len(all_locations), page_num
+    )
     return all_locations
 
 
@@ -188,13 +193,17 @@ def _fetch_location_data(
                     delay = _RETRY_BACKOFF[attempt]
                     logger.warning(
                         "Location %s: transient error (%s) on attempt %d — retrying in %.0fs",
-                        location_id, exc, attempt + 1, delay,
+                        location_id,
+                        exc,
+                        attempt + 1,
+                        delay,
                     )
                     time.sleep(delay)
                 else:
                     logger.warning(
                         "Location %s: transient error after %d attempts — skipping",
-                        location_id, _MAX_RETRIES,
+                        location_id,
+                        _MAX_RETRIES,
                     )
                     return None
 
@@ -245,7 +254,7 @@ def hydrovu_source(
     token_url: str = dlt.config.value,
     initial_start_date: str = dlt.config.value,
     _stats: dict | None = None,
-):
+) -> Any:
     """
     Reads credentials and config from dlt.secrets/dlt.config under [hydrovu].
     Creates a single _TokenManager shared by both resources so the token is
@@ -257,9 +266,7 @@ def hydrovu_source(
       keys: rows_yielded, locations_fetched, locations_skipped, locations_no_data
     """
     start_ts = int(
-        datetime.strptime(initial_start_date, "%Y-%m-%d")
-        .replace(tzinfo=timezone.utc)
-        .timestamp()
+        datetime.strptime(initial_start_date, "%Y-%m-%d").replace(tzinfo=UTC).timestamp()
     )
     tm = _TokenManager(token_url, client_id, client_secret)
     locations = _fetch_locations(api_base_url, tm)
@@ -313,7 +320,8 @@ def hydrovu_readings(
     tm: _TokenManager,
     locations: list[dict],
     _stats: dict | None = None,
-    updated_at: dlt.sources.incremental[int] = dlt.sources.incremental(
+    # dlt detects the incremental cursor via this default — idiomatic, so B008 is expected.
+    updated_at: dlt.sources.incremental[int] = dlt.sources.incremental(  # noqa: B008
         "timestamp",
         initial_value=0,
     ),

@@ -31,15 +31,15 @@ Mapping confirmed against old HydroVu STAO implementation and
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
-from typing import Iterator
+from collections.abc import Iterator
+from datetime import UTC, datetime
 
 from aqueduct_dagster.canonical.base_adapter import BaseAdapter
 from aqueduct_dagster.canonical.canonical_constants import (
     DTW_OBS_PROP,
     HYDROVU_SENSOR,
-    OM_Measurement,
     UNIT_FOOT,
+    OM_Measurement,
     gwl_datastream_meta,
 )
 from aqueduct_dagster.canonical.canonical_model import (
@@ -120,9 +120,7 @@ class HydroVuAdapter(BaseAdapter):
             value_ft = reading["value"] * METRES_TO_FEET
             observations.append(
                 CanonicalObservation(
-                    phenomenon_time=datetime.fromtimestamp(
-                        reading["timestamp"], tz=timezone.utc
-                    ),
+                    phenomenon_time=datetime.fromtimestamp(reading["timestamp"], tz=UTC),
                     result=value_ft,
                     datastream_external_key=ds_key,
                 )

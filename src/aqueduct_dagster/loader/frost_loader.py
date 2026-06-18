@@ -26,14 +26,16 @@ frost_sta_client object model notes:
 import abc
 import logging
 import time
-from datetime import datetime, timezone
-from typing import Callable, Iterable, Iterator, Sequence
+from collections.abc import Callable, Iterable, Iterator, Sequence
+from datetime import UTC, datetime
+from typing import Any
 
 from aqueduct_dagster.canonical.canonical_model import (
     CanonicalDatastream,
     CanonicalLocation,
     CanonicalObservedProperty,
     CanonicalSensor,
+    CanonicalThing,
 )
 from aqueduct_dagster.loader.watermark_store import WatermarkStore
 
@@ -45,6 +47,7 @@ DEFAULT_CHUNK_SIZE = 1000
 # --------------------------------------------------------------------------- #
 # ObservationRecord + LoadResult
 # --------------------------------------------------------------------------- #
+
 
 class ObservationRecord:
     __slots__ = ("phenomenon_time", "result")
@@ -69,12 +72,13 @@ class LoadResult:
 # Helpers
 # --------------------------------------------------------------------------- #
 
+
 def _chunked(items: Sequence, size: int) -> Iterator[Sequence]:
     for i in range(0, len(items), size):
-        yield items[i: i + size]
+        yield items[i : i + size]
 
 
-def _with_retry(fn: Callable, *, attempts: int = 5, base_delay: float = 0.5):
+def _with_retry[T](fn: Callable[..., T], *, attempts: int = 5, base_delay: float = 0.5) -> T:
     last_exc: Exception | None = None
     for attempt in range(1, attempts + 1):
         try:
@@ -95,6 +99,7 @@ def _with_retry(fn: Callable, *, attempts: int = 5, base_delay: float = 0.5):
 # --------------------------------------------------------------------------- #
 # FrostLoader — abstract base
 # --------------------------------------------------------------------------- #
+
 
 class FrostLoader(abc.ABC):
     """
@@ -119,11 +124,15 @@ class FrostLoader(abc.ABC):
             self._find_observed_property, self._create_observed_property, spec.observed_property
         )
         return self._upsert(
-            self._find_datastream, self._create_datastream, spec,
-            thing_id=thing_id, sensor_id=sensor_id, observed_property_id=obsprop_id,
+            self._find_datastream,
+            self._create_datastream,
+            spec,
+            thing_id=thing_id,
+            sensor_id=sensor_id,
+            observed_property_id=obsprop_id,
         )
 
-    def _upsert(self, find: Callable, create: Callable, spec, **links) -> str:
+    def _upsert(self, find: Callable, create: Callable, spec: Any, **links: str) -> str:
         existing = find(spec.external_key)
         if existing is not None:
             return existing
@@ -161,7 +170,10 @@ class FrostLoader(abc.ABC):
 
         logger.info(
             "datastream %s: posted %d, skipped %d, watermark→%s",
-            datastream_key, result.posted, result.skipped, result.new_watermark,
+            datastream_key,
+            result.posted,
+            result.skipped,
+            result.new_watermark,
         )
         return result
 
@@ -172,7 +184,7 @@ class FrostLoader(abc.ABC):
     @abc.abstractmethod
     def _find_thing(self, external_key: str) -> str | None: ...
     @abc.abstractmethod
-    def _create_thing(self, spec, *, location_id: str) -> str: ...
+    def _create_thing(self, spec: CanonicalThing, *, location_id: str) -> str: ...
     @abc.abstractmethod
     def _find_sensor(self, external_key: str) -> str | None: ...
     @abc.abstractmethod
@@ -185,8 +197,12 @@ class FrostLoader(abc.ABC):
     def _find_datastream(self, external_key: str) -> str | None: ...
     @abc.abstractmethod
     def _create_datastream(
-        self, spec: CanonicalDatastream, *,
-        thing_id: str, sensor_id: str, observed_property_id: str,
+        self,
+        spec: CanonicalDatastream,
+        *,
+        thing_id: str,
+        sensor_id: str,
+        observed_property_id: str,
     ) -> str: ...
     @abc.abstractmethod
     def _post_data_array(self, datastream_id: str, chunk: Sequence[ObservationRecord]) -> None: ...
@@ -197,6 +213,7 @@ class FrostLoader(abc.ABC):
 # --------------------------------------------------------------------------- #
 # FrostStaClientLoader — concrete implementation using frost_sta_client
 # --------------------------------------------------------------------------- #
+
 
 class FrostStaClientLoader(FrostLoader):
     """
@@ -211,13 +228,15 @@ class FrostStaClientLoader(FrostLoader):
     UnitOfMeasurement instance before passing to fsc.Datastream.
     """
 
-    def __init__(self, service, watermarks: WatermarkStore, chunk_size: int = DEFAULT_CHUNK_SIZE) -> None:
+    def __init__(
+        self, service: Any, watermarks: WatermarkStore, chunk_size: int = DEFAULT_CHUNK_SIZE
+    ) -> None:
         super().__init__(watermarks, chunk_size)
         self.service = service
 
     # ── find helpers ────────────────────────────────────────────────────────
 
-    def _find_id_by_key(self, entity_dao, external_key: str) -> str | None:
+    def _find_id_by_key(self, entity_dao: Any, external_key: str) -> str | None:
         flt = f"properties/{self.KEY_FIELD} eq '{external_key}'"
         for entity in entity_dao.query().filter(flt).list():
             return str(entity.id)
@@ -242,6 +261,7 @@ class FrostStaClientLoader(FrostLoader):
 
     def _create_location(self, spec: CanonicalLocation) -> str:
         import frost_sta_client as fsc
+
         location = fsc.Location(
             name=spec.name,
             description=spec.description,
@@ -253,8 +273,9 @@ class FrostStaClientLoader(FrostLoader):
         logger.info("Created Location id=%s key=%s", location.id, spec.external_key)
         return str(location.id)
 
-    def _create_thing(self, spec, *, location_id: str) -> str:
+    def _create_thing(self, spec: CanonicalThing, *, location_id: str) -> str:
         import frost_sta_client as fsc
+
         thing = fsc.Thing(
             name=spec.name,
             description=spec.description,
@@ -267,6 +288,7 @@ class FrostStaClientLoader(FrostLoader):
 
     def _create_sensor(self, spec: CanonicalSensor) -> str:
         import frost_sta_client as fsc
+
         sensor = fsc.Sensor(
             name=spec.name,
             description=spec.description,
@@ -280,6 +302,7 @@ class FrostStaClientLoader(FrostLoader):
 
     def _create_observed_property(self, spec: CanonicalObservedProperty) -> str:
         import frost_sta_client as fsc
+
         op = fsc.ObservedProperty(
             name=spec.name,
             definition=spec.definition,
@@ -325,8 +348,8 @@ class FrostStaClientLoader(FrostLoader):
 
     def _post_data_array(self, datastream_id: str, chunk: Sequence[ObservationRecord]) -> None:
         import frost_sta_client as fsc
-        from frost_sta_client.model.ext.data_array_value import DataArrayValue
         from frost_sta_client.model.ext.data_array_document import DataArrayDocument
+        from frost_sta_client.model.ext.data_array_value import DataArrayValue
 
         dav = DataArrayValue()
         # datastream must be set before components (DataArrayValue.__getstate__ uses dav.datastream.id)
@@ -336,10 +359,12 @@ class FrostStaClientLoader(FrostLoader):
             DataArrayValue.Property.RESULT,
         }
         for rec in chunk:
-            dav.add_observation(fsc.Observation(
-                phenomenon_time=rec.phenomenon_time,
-                result=rec.result,
-            ))
+            dav.add_observation(
+                fsc.Observation(
+                    phenomenon_time=rec.phenomenon_time,
+                    result=rec.result,
+                )
+            )
         doc = DataArrayDocument()
         doc.add_data_array_value(dav)
         self.service.observations().create(doc)
@@ -349,13 +374,14 @@ class FrostStaClientLoader(FrostLoader):
     def _max_phenomenon_time(self, datastream_id: str) -> datetime | None:
         """Query FROST for the most recent observation on this datastream."""
         import frost_sta_client as fsc
+
         try:
             ds = fsc.Datastream(id=int(datastream_id))
             ds.service = self.service
             obs_list = (
                 ds.get_observations()
                 .query()
-                .orderby("phenomenonTime")   # DESC by default in frost_sta_client
+                .orderby("phenomenonTime")  # DESC by default in frost_sta_client
                 .top(1)
                 .list()
             )
@@ -364,7 +390,7 @@ class FrostStaClientLoader(FrostLoader):
                     continue
                 pt = ob.phenomenon_time
                 if isinstance(pt, datetime):
-                    return pt.replace(tzinfo=timezone.utc) if pt.tzinfo is None else pt
+                    return pt.replace(tzinfo=UTC) if pt.tzinfo is None else pt
                 # frost_sta_client stores datetime as ISO string after __setstate__
                 return datetime.fromisoformat(pt.replace("Z", "+00:00"))
         except Exception as exc:

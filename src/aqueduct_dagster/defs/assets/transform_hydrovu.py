@@ -49,8 +49,10 @@ class HydroVuTransformResult:
     The load step writes the watermark only after FROST confirms success,
     so a FROST failure leaves max_load_id unwritten and the next run retries.
     """
+
     bundles: list[CanonicalBundle]
     max_load_id: float | None
+
 
 logger = logging.getLogger(__name__)
 
@@ -191,9 +193,7 @@ def _read_dtw_rows_from_gcs(
         new_files.append((load_id, f))
 
     if not new_files:
-        logger.info(
-            "No new parquet files since load_id=%s — nothing to process", since_load_id
-        )
+        logger.info("No new parquet files since load_id=%s — nothing to process", since_load_id)
         return [], None
 
     logger.info(
@@ -236,12 +236,14 @@ def _group_by_location(rows: list[dict], locations: dict[int, dict]) -> list[dic
                 "longitude": loc.get("longitude"),
                 "readings": [],
             }
-        groups[loc_id]["readings"].append({
-            "parameter_id": row["parameter_id"],
-            "unit_id": row["unit_id"],
-            "timestamp": row["timestamp"],
-            "value": row["value"],
-        })
+        groups[loc_id]["readings"].append(
+            {
+                "parameter_id": row["parameter_id"],
+                "unit_id": row["unit_id"],
+                "timestamp": row["timestamp"],
+                "value": row["value"],
+            }
+        )
     return list(groups.values())
 
 
@@ -280,29 +282,31 @@ def canonical_bundles_hydrovu(
 
     if not rows:
         context.log.info("No new DTW rows — returning empty result (watermark unchanged)")
-        context.add_output_metadata({
-            "dtw_rows_read": MetadataValue.int(0),
-            "bundles_produced": MetadataValue.int(0),
-            "watermark_before": MetadataValue.text(str(since_load_id)),
-            "watermark_after": MetadataValue.text(str(max_load_id)),
-        })
+        context.add_output_metadata(
+            {
+                "dtw_rows_read": MetadataValue.int(0),
+                "bundles_produced": MetadataValue.int(0),
+                "watermark_before": MetadataValue.text(str(since_load_id)),
+                "watermark_after": MetadataValue.text(str(max_load_id)),
+            }
+        )
         return HydroVuTransformResult(bundles=[], max_load_id=max_load_id)
 
     locations = _read_locations_from_gcs(bucket_url, fs)
     records = _group_by_location(rows, locations)
-    context.log.info(
-        "Grouped %d new DTW rows into %d location records", len(rows), len(records)
-    )
+    context.log.info("Grouped %d new DTW rows into %d location records", len(rows), len(records))
 
     adapter = HydroVuAdapter(records)
     bundles = list(adapter.run())
     context.log.info("Produced %d CanonicalBundles", len(bundles))
 
-    context.add_output_metadata({
-        "dtw_rows_read": MetadataValue.int(len(rows)),
-        "locations_grouped": MetadataValue.int(len(records)),
-        "bundles_produced": MetadataValue.int(len(bundles)),
-        "watermark_before": MetadataValue.text(str(since_load_id)),
-        "watermark_after": MetadataValue.text(str(max_load_id)),
-    })
+    context.add_output_metadata(
+        {
+            "dtw_rows_read": MetadataValue.int(len(rows)),
+            "locations_grouped": MetadataValue.int(len(records)),
+            "bundles_produced": MetadataValue.int(len(bundles)),
+            "watermark_before": MetadataValue.text(str(since_load_id)),
+            "watermark_after": MetadataValue.text(str(max_load_id)),
+        }
+    )
     return HydroVuTransformResult(bundles=bundles, max_load_id=max_load_id)

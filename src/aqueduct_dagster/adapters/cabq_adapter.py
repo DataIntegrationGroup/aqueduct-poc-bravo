@@ -16,21 +16,13 @@ Fetching and auth live entirely in pipeline/cabq_dlt_pipeline.py
 from __future__ import annotations
 
 import logging
-from typing import Iterator
+from collections.abc import Iterator
 
 from aqueduct_dagster.canonical.base_adapter import BaseAdapter
 from aqueduct_dagster.canonical.canonical_model import (
     CanonicalDatastream,
-    CanonicalLocation,
     CanonicalObservation,
     CanonicalThing,
-)
-from aqueduct_dagster.canonical.canonical_constants import (
-    MANUAL_SENSOR,
-    DTW_OBS_PROP,
-    OM_Measurement,
-    UNIT_FOOT,
-    gwl_datastream_meta,
 )
 
 logger = logging.getLogger(__name__)
@@ -71,14 +63,14 @@ class CabqAdapter(BaseAdapter):
         #   external_key = self.make_location_key(source_id)
         #   build CanonicalLocation with GeoJSON Point geometry
         #   build CanonicalThing with agency + source_id in properties
-        pass
+        raise NotImplementedError("CabqAdapter.to_thing is not implemented yet")
 
     def to_observations(self, record: dict) -> list[CanonicalObservation]:
         # TODO: map readings → list[CanonicalObservation]
         # Follow HydroVuAdapter.to_observations() pattern:
         #   ds_key = self.make_datastream_key(source_id, "dtw")
         #   for each reading: CanonicalObservation(phenomenon_time=UTC datetime, result=float)
-        pass
+        raise NotImplementedError("CabqAdapter.to_observations is not implemented yet")
 
     def _build_datastreams(self, thing: CanonicalThing) -> list[CanonicalDatastream]:
         # TODO: build CanonicalDatastream using canonical constants
@@ -86,4 +78,4 @@ class CabqAdapter(BaseAdapter):
         #   ds_key = self.make_datastream_key(source_id, "dtw")
         #   meta = gwl_datastream_meta(self.agency, thing.name)
         #   use MANUAL_SENSOR (CABQ is manual measurement), DTW_OBS_PROP, UNIT_FOOT
-        pass
+        raise NotImplementedError("CabqAdapter._build_datastreams is not implemented yet")

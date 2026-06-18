@@ -3,14 +3,18 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterator
 from contextlib import contextmanager
-from typing import Iterator
+from typing import TYPE_CHECKING
 
 from dagster import AssetExecutionContext
 
+if TYPE_CHECKING:
+    from dagster import DagsterLogManager
+
 
 class _DagsterLogHandler(logging.Handler):
-    def __init__(self, dagster_log) -> None:
+    def __init__(self, dagster_log: DagsterLogManager) -> None:
         super().__init__()
         self._dagster_log = dagster_log
 

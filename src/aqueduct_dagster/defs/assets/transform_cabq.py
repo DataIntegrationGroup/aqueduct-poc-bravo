@@ -19,12 +19,11 @@ Upstream:  raw_cabq_readings
 Downstream: frost_load_cabq
 """
 
-
 import logging
 
 from dagster import AssetExecutionContext, asset
 
-from aqueduct_dagster.adapters.cabq_adapter import CabqAdapter
+from aqueduct_dagster.adapters.cabq_adapter import CabqAdapter  # noqa: F401
 from aqueduct_dagster.canonical.canonical_model import CanonicalBundle
 
 logger = logging.getLogger(__name__)

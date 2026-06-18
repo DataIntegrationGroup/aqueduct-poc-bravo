@@ -12,7 +12,6 @@ This is the FIRST asset in the CABQ pipeline. No upstream dependencies.
 Downstream: transform_cabq (reads from GCS)
 """
 
-
 import logging
 
 from dagster import AssetExecutionContext, MaterializeResult, MetadataValue, asset
