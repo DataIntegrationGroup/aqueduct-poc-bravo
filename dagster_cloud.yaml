@@ -1,0 +1,4 @@
+locations:
+- code_source:
+    module_name: aqueduct_dagster.defs.definitions
+  location_name: aqueduct_dagster_defs_definitions
