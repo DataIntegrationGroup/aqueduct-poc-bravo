@@ -9,13 +9,13 @@ Two resources returned from hydrovu_source():
     Fetches GET /locations/list on every run and fully replaces the parquet.
     One row per location: id, name, description, latitude, longitude.
     Acts as a reference table — rename in HydroVu → latest name in GCS.
-    Written to: gs://<bucket>/raw_pvacd/hydrovu_locations/
+    Written to: gs://<bucket>/raw_pvacd/hydrovu_locations/year={YYYY}/month={MM}/day={DD}/
 
   hydrovu_readings   (write_disposition="append", incremental cursor)
     Fetches readings per location since the last run's max timestamp.
     One row per (location, parameter, reading) — location metadata is NOT
     embedded; join to hydrovu_locations on location_id at transform time.
-    Written to: gs://<bucket>/raw_pvacd/hydrovu_readings/
+    Written to: gs://<bucket>/raw_pvacd/hydrovu_readings/year={YYYY}/month={MM}/day={DD}/
 
 _TokenManager is created once in hydrovu_source() and passed to both
 resources so a single token covers the full run.
@@ -395,7 +395,7 @@ def build_pipeline() -> dlt.Pipeline:
     """
     Returns a configured dlt pipeline writing parquet to GCS.
     Bucket is read from config.toml [destination.filesystem] bucket_url.
-    Writes to gs://<bucket>/raw_pvacd/hydrovu_readings/
+    Writes to gs://<bucket>/raw_pvacd/hydrovu_readings/year={YYYY}/month={MM}/day={DD}/
 
     Always call pipeline.run(..., loader_file_format="parquet") — the format
     cannot be set reliably via config.toml for the filesystem destination.

@@ -78,7 +78,7 @@ def build_pipeline() -> dlt.Pipeline:
     """
     Returns a configured dlt pipeline writing parquet to GCS.
     Bucket is read from config.toml [destination.filesystem] bucket_url.
-    Writes to gs://<bucket>/raw_cabq/cabq_readings/
+    Writes to gs://<bucket>/raw_cabq/cabq_readings/year={YYYY}/month={MM}/day={DD}/
 
     Always call pipeline.run(..., loader_file_format="parquet") — same as HydroVu.
     """

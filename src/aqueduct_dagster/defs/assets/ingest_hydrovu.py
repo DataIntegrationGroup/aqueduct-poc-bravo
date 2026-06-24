@@ -4,10 +4,10 @@ defs/assets/ingest_hydrovu.py
 Dagster asset: raw_hydrovu_readings
   Runs the HydroVu dlt source which writes two resources to GCS:
 
-  hydrovu_locations  (replace)  gs://<bucket>/raw_pvacd/hydrovu_locations/
+  hydrovu_locations  (replace)  gs://<bucket>/raw_pvacd/hydrovu_locations/year={YYYY}/month={MM}/day={DD}/
     Full location list on every run — one row per location.
 
-  hydrovu_readings   (append, incremental)  gs://<bucket>/raw_pvacd/hydrovu_readings/
+  hydrovu_readings   (append, incremental)  gs://<bucket>/raw_pvacd/hydrovu_readings/year={YYYY}/month={MM}/day={DD}/
     New readings since the last cursor value — one row per (location, parameter, reading).
     Location metadata is omitted; join to hydrovu_locations on location_id at transform time.
 

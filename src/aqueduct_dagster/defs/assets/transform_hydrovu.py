@@ -104,8 +104,8 @@ def _gcs_credentials() -> dict:
 def _load_id_from_filename(path: str) -> float | None:
     """
     Extracts the dlt load_id from a parquet filename.
-    Expected format: .../{load_id}.{file_id}.parquet
-    e.g. raw_pvacd/hydrovu_readings/1781192390.555875.0.parquet → 1781192390.555875
+    Expected format: .../year={YYYY}/month={MM}/day={DD}/{load_id}.{file_id}.parquet
+    e.g. raw_pvacd/hydrovu_readings/year=2024/month=06/day=18/1781192390.555875.0.parquet → 1781192390.555875
     """
     name = path.split("/")[-1]
     m = re.match(r"^(\d+\.\d+)\.", name)

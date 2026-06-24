@@ -4,7 +4,7 @@ defs/assets/ingest_cabq.py
 Dagster asset: raw_cabq_readings
   - Runs the CABQ dlt pipeline
   - Fetches from CABQ CKAN API (incrementally, cursor-based)
-  - Writes raw parquet to GCS under gs://<bucket>/raw/cabq/cabq_readings/
+  - Writes raw parquet to GCS under gs://<bucket>/raw_cabq/cabq_readings/year={YYYY}/month={MM}/day={DD}/
   - dlt handles incremental cursor, parquet serialisation, GCS write,
     and cursor state persistence alongside the data in GCS
 
