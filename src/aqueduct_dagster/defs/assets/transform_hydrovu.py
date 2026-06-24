@@ -16,8 +16,8 @@ Incremental reads (readings only):
   with a newer load_id are read. The watermark is updated after a successful run.
 
   load_id is the float Unix timestamp dlt embeds in every parquet filename:
-    raw_pvacd/hydrovu_readings/{load_id}.{file_id}.parquet
-  e.g. raw_pvacd/hydrovu_readings/1781192390.555875.0.parquet
+    raw_pvacd/hydrovu_readings/year={YYYY}/month={MM}/day={DD}/{load_id}.{file_id}.parquet
+  e.g. raw_pvacd/hydrovu_readings/year=2024/month=06/day=18/1781192390.555875.0.parquet
 
 Locations parquet (hydrovu_locations/) uses write_disposition="replace" so it is
 always a single up-to-date file — read fresh on every run, no watermark needed.
@@ -143,7 +143,7 @@ def _read_locations_from_gcs(bucket_url: str, fs: gcsfs.GCSFileSystem) -> dict[i
     Returns a dict keyed by location_id for O(1) join with readings rows.
     """
     bucket = bucket_url.replace("gs://", "")
-    pattern = f"{bucket}/raw_pvacd/hydrovu_locations/*.parquet"
+    pattern = f"{bucket}/raw_pvacd/hydrovu_locations/**/*.parquet"
     files = fs.glob(pattern)
     if not files:
         raise FileNotFoundError(
@@ -180,7 +180,7 @@ def _read_dtw_rows_from_gcs(
     Returns (rows, max_load_id_seen_this_run) — max_load_id is None if no new files.
     """
     bucket = bucket_url.replace("gs://", "")
-    pattern = f"{bucket}/raw_pvacd/hydrovu_readings/*.parquet"
+    pattern = f"{bucket}/raw_pvacd/hydrovu_readings/**/*.parquet"
     all_files = fs.glob(pattern)
 
     new_files = []
