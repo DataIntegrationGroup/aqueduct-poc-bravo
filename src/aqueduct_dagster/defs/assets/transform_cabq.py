@@ -45,7 +45,7 @@ def canonical_bundles_cabq(context: AssetExecutionContext) -> list[CanonicalBund
       1. bucket_url = _gcs_bucket_url()  (import from transform_hydrovu or duplicate helper)
       2. creds = _gcs_credentials()
       3. since_load_id = _read_watermark(fs, bucket)
-      4. rows, max_load_id = read new parquet files from raw_cabq/cabq_readings/
+      4. rows, max_load_id = read new parquet files from raw_cabq/cabq_readings/year={YYYY}/month={MM}/day={DD}/
       5. group rows by location_id
       6. return CabqTransformResult(bundles=list(CabqAdapter(records).run()), max_load_id=max_load_id)
     """

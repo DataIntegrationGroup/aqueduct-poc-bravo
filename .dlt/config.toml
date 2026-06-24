@@ -9,4 +9,4 @@ initial_start_date = "2026-01-01"   # change to limit initial load
 
 [destination.filesystem]
 bucket_url = "gs://aqueduct-poc-bravo-pvacd"
-layout     = "{table_name}/{load_id}.{file_id}.{ext}"
+layout     = "{table_name}/year={YYYY}/month={MM}/day={DD}/{load_id}.{file_id}.{ext}"

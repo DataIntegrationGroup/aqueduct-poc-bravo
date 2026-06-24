@@ -8,7 +8,7 @@ grows. When you add a source, a zone, or a partitioning scheme, update the
 [Changelog](#changelog) at the bottom.
 
 - **Status:** raw zone only, date-partitioned, 2 agencies (PVACD via HydroVu live; CABQ scaffolded)
-- **Last updated:** 2026-06-22
+- **Last updated:** 2026-06-24
 
 ---
 
@@ -183,7 +183,7 @@ Set this in `.dlt/config.toml` (dlt prepends `dataset_name` automatically):
 
 ```toml
 [destination.filesystem]
-layout = "{table_name}/year={year}/month={month}/day={day}/{load_id}.{file_id}.{ext}"
+layout = "{table_name}/year={YYYY}/month={MM}/day={DD}/{load_id}.{file_id}.{ext}"
 ```
 
 Which produces paths like:
@@ -207,12 +207,10 @@ so no transform code change is needed.
 
 ## Decisions & known gaps
 
-- **Date-partition `layout` must be live in config.** The date-partitioned
-  `layout` (above) needs to be set in `.dlt/config.toml`. Until it is, dlt writes
-  flat files under the table prefix. Applying it is a one-line, transform-safe
-  change (the watermark reads `load_id` from the filename, not the path). Any
-  existing flat files can be left in place or back-filled into date folders as a
-  separate task.
+- **Date-partition `layout` is live.** The date-partitioned `layout` is set in
+  `.dlt/config.toml`. The transform layer uses a recursive `**/*.parquet` glob so
+  it finds files in any depth of date subfolders. Pre-migration flat files are
+  covered by the existing watermark and will not be reprocessed.
 - **No staging/curated zone yet** — intentional. Revisit only when a consumer
   needs pre-FROST data on disk.
 
@@ -242,3 +240,4 @@ so no transform code change is needed.
 | Date | Change |
 |---|---|
 | 2026-06-22 | Initial version. Covers the `aqueduct-production` raw-zone bucket, agency datasets (`raw_pvacd`, `raw_cabq`), `<source>_<entity>` tables, date-partitioned (`year=/month=/day=`) dlt layout, and the sidecar-file convention. |
+| 2026-06-24 | Applied date-partitioned layout to `.dlt/config.toml` (dlt tokens `{YYYY}/{MM}/{DD}`). Updated transform globs to `**/*.parquet` for recursive subdirectory traversal. Corrected layout token format throughout (was `{year}/{month}/{day}`). |
