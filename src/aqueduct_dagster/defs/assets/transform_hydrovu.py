@@ -75,12 +75,8 @@ def _gcs_bucket_url() -> str:
 
 def _gcs_credentials() -> dict | None:
     """
-    Resolve GCS service account credentials in priority order:
-      1. GOOGLE_APPLICATION_CREDENTIALS env var → path to a service account JSON file
-      2. .dlt/secrets.toml relative to CWD (works when running `dagster dev` from project root)
-    In production, set GOOGLE_APPLICATION_CREDENTIALS to the mounted secret path.
-
-    Ignore all of this if no .env file exists, and rely on local authentication
+    Resolve GCS service account credentials with GOOGLE_APPLICATION_CREDENTIALS env var → path to a service account JSON file
+    GOOGLE_APPLICATION_CREDENTIALS should not be used in production or for local development in favor of ADC.
     """
     if not os.path.exists(".env"):
         return None

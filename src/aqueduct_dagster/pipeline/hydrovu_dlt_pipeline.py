@@ -327,7 +327,7 @@ def hydrovu_source(
     _stats: dict | None = None,
 ) -> Any:
     """
-    Reads credentials and config from dlt.secrets/dlt.config under [sources.hydrovu].
+    Reads config from dlt.config under [hydrovu].
     Creates a single _TokenManager shared by both resources so the token is
     fetched once and reused across the full run.
     Fetches the location list once and passes it to both resources to avoid
