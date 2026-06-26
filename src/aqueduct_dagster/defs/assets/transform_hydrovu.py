@@ -66,29 +66,15 @@ def _gcs_bucket_url() -> str:
       1. GCS_BUCKET_URL env var
       2. [destination.filesystem] bucket_url in .dlt/config.toml
     """
-    env_val = os.environ.get("GCS_BUCKET_URL")
-    if env_val:
-        return env_val
     config_path = os.path.join(os.getcwd(), ".dlt", "config.toml")
     return toml.load(config_path)["destination"]["filesystem"]["bucket_url"]
 
 
-def _gcs_credentials() -> dict | None:
-    """
-    Resolve GCS service account credentials with GOOGLE_APPLICATION_CREDENTIALS env var → path to a service account JSON file
-    GOOGLE_APPLICATION_CREDENTIALS should not be used in production or for local development in favor of ADC.
-    """
-    if not os.path.exists(".env"):
-        return None
-
-    creds_file = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
-    if creds_file and os.path.exists(creds_file):
-        with open(creds_file) as f:
-            return json.load(f)
-
-    raise FileNotFoundError(
-        "GCS credentials not found. Run 'gcloud auth application-default login'."
-    )
+def _gcs_filesystem(project: str = None) -> gcsfs.GCSFileSystem:
+    if project:
+        return gcsfs.GCSFileSystem(project=project, token="google_default")
+    else:
+        return gcsfs.GCSFileSystem(token="google_default")
 
 
 def _load_id_from_filename(path: str) -> float | None:
@@ -122,7 +108,7 @@ def _write_watermark(fs: gcsfs.GCSFileSystem, bucket: str, load_id: float) -> No
 def commit_watermark(max_load_id: float) -> None:
     """Write the transform watermark. Called by the load step after FROST confirms success."""
     bucket_url = _gcs_bucket_url()
-    fs = gcsfs.GCSFileSystem(project="waterdatainitiative271000", token="google_default")
+    fs = _gcs_filesystem()
     _write_watermark(fs, bucket_url.replace("gs://", ""), max_load_id)
 
 
@@ -257,11 +243,7 @@ def canonical_bundles_hydrovu(
     bucket_url = _gcs_bucket_url()
     bucket = bucket_url.replace("gs://", "")
 
-    creds = _gcs_credentials()
-    if creds:
-        fs = gcsfs.GCSFileSystem(project=creds["project_id"], token=creds)
-    else:
-        fs = gcsfs.GCSFileSystem(project="waterdatainitiative-271000", token="google_default")
+    fs = _gcs_filesystem()
 
     since_load_id = _read_watermark(fs, bucket)
     context.log.info(

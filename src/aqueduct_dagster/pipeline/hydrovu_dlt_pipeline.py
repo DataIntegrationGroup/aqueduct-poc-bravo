@@ -41,6 +41,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import time
 from collections.abc import Iterator
 from datetime import UTC, datetime
@@ -48,6 +49,7 @@ from typing import Any
 
 import dlt
 import httpx
+import toml
 from google.cloud import secretmanager
 
 logger = logging.getLogger(__name__)
@@ -320,6 +322,7 @@ def _fetch_location_data(
 def hydrovu_source(
     client_id: str = "",
     client_secret: str = "",
+    gcp_secret: str = dlt.config.value,
     api_base_url: str = dlt.config.value,
     token_url: str = dlt.config.value,
     initial_start_date: str = dlt.config.value,
@@ -342,8 +345,11 @@ def hydrovu_source(
             locations_errored, failed_location_ids
     """
     if not client_id:
+        config_path = os.path.join(os.getcwd(), ".dlt", "config.toml")
+        project_number = toml.load(config_path)["destination"]["filesystem"]["gcp_project_number"]
+
         client = secretmanager.SecretManagerServiceClient()
-        name = client.secret_version_path("95715287188", "hydrovu_pvacd", "latest")
+        name = client.secret_version_path(project_number, gcp_secret, "latest")
         response = client.access_secret_version(name=name)
         payload = json.loads(response.payload.data.decode("UTF-8"))
 
