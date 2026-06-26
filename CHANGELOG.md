@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.1.1](https://github.com/DataIntegrationGroup/Aqueduct/compare/Aqueduct-v0.1.0...Aqueduct-v0.1.1) (2026-06-26)
+
+
+### Bug Fixes
+
+* **hydrovu:** add date-partitioned GCS layout(ST2DAT-113) ([#12](https://github.com/DataIntegrationGroup/Aqueduct/issues/12)) ([45d043b](https://github.com/DataIntegrationGroup/Aqueduct/commit/45d043bfadc9c17916fbd4d49b97749e289830ec))
+* **hydrovu:** fix silent error swallowing in fetch location data (ST2DAT-114) ([#16](https://github.com/DataIntegrationGroup/Aqueduct/issues/16)) ([24b4fc6](https://github.com/DataIntegrationGroup/Aqueduct/commit/24b4fc6d6b3f87647eccf050b0b2b690e17bcb64))
+* **hydrovu:** move PVACD location IDs from code to config(ST2DAT-120) ([#14](https://github.com/DataIntegrationGroup/Aqueduct/issues/14)) ([94f6878](https://github.com/DataIntegrationGroup/Aqueduct/commit/94f68782fd6af44953079c9569e590e9398fa8c6))
+* **hydrovu:** replace global cursor with per-location cursor (ST2DAT-115) ([#13](https://github.com/DataIntegrationGroup/Aqueduct/issues/13)) ([65960ea](https://github.com/DataIntegrationGroup/Aqueduct/commit/65960ea9fc2f6bcb1900efeda7e502833cb38809))
+
+
+### Dependencies
+
+* **dagster:** add dagster-cloud and dagster-dg-cli ([#10](https://github.com/DataIntegrationGroup/Aqueduct/issues/10)) ([2b033a2](https://github.com/DataIntegrationGroup/Aqueduct/commit/2b033a2da3eda86f2306c8f0aee68ca8eb8aa298))
+
+
+### Documentation
+
+* **gcs:** add storage naming conventions and agent guidance ([#8](https://github.com/DataIntegrationGroup/Aqueduct/issues/8)) ([a45f77d](https://github.com/DataIntegrationGroup/Aqueduct/commit/a45f77d3dd12ee40ff7a2209b185e7d2128968d3))
+
 ## 0.1.0 (2026-06-18)
 
 
