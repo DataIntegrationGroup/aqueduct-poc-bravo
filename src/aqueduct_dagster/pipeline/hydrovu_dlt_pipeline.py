@@ -109,11 +109,28 @@ def _fetch_locations(api_base_url: str, tm: _TokenManager) -> list[dict]:
         )
         if resp.status_code == 401:
             logger.warning("401 on /locations/list — refreshing token and retrying")
-            resp = httpx.get(
-                f"{api_base_url}/locations/list",
-                headers={**_auth_headers(tm.force_refresh()), "X-ISI-Start-Page": page_cursor},
-                timeout=30,
-            )
+            fresh_token = tm.force_refresh()
+            for attempt in range(_MAX_RETRIES):
+                try:
+                    resp = httpx.get(
+                        f"{api_base_url}/locations/list",
+                        headers={**_auth_headers(fresh_token), "X-ISI-Start-Page": page_cursor},
+                        timeout=30,
+                    )
+                    break
+                except _TRANSIENT_ERRORS as exc:
+                    if attempt < _MAX_RETRIES - 1:
+                        delay = _RETRY_BACKOFF[attempt]
+                        logger.warning(
+                            "locations/list 401-retry: transient error (%s) on attempt %d"
+                            " — retrying in %.0fs",
+                            exc,
+                            attempt + 1,
+                            delay,
+                        )
+                        time.sleep(delay)
+                    else:
+                        raise
         resp.raise_for_status()
         page = resp.json()
         all_locations.extend(page)
@@ -139,16 +156,26 @@ _LOCATION_TIMEOUT = httpx.Timeout(connect=10.0, read=60.0, write=10.0, pool=10.0
 _MAX_RETRIES = 3
 _RETRY_BACKOFF = (2.0, 4.0, 8.0)
 _TRANSIENT_ERRORS = (httpx.ReadError, httpx.ConnectError, httpx.RemoteProtocolError)
+_429_BACKOFF = 60.0  # seconds to wait on 429 when Retry-After header is absent
+_MAX_RATE_LIMIT_RETRIES = 3
 
 
 def _fetch_location_data(
     api_base_url: str, location_id: int, start_time: int, tm: _TokenManager
-) -> dict | None:
+) -> tuple[dict | None, str | None]:
     """
     Fetches all readings for one location, walking cursor-based pages.
-    Returns None on 404/500. Retries once on 401 per page.
-    Retries up to 3 times on transient network errors (connection reset, etc.)
-    with exponential backoff.
+
+    Returns:
+      (data, None)   — success
+      (None, None)   — HTTP 404: location has no data endpoint (expected, not an error)
+      (None, reason) — real error: HTTP 429, 5xx, or exhausted retries
+
+    On 401: refreshes token and retries once (with transient-error protection).
+    On 429: respects Retry-After header; falls back to _429_BACKOFF seconds.
+            Retries up to _MAX_RATE_LIMIT_RETRIES times, then returns (None, reason).
+    On transient network errors: retries up to _MAX_RETRIES times with exponential
+            backoff, then returns (None, reason).
 
     Pagination: X-ISI-Start-Page="" on the first request, then pass the
     X-ISI-Next-Page cursor token from each response verbatim. Stop when
@@ -157,6 +184,10 @@ def _fetch_location_data(
     all_data: dict | None = None
     page_cursor: str = ""
     page_num = 0
+    # Per-location counter — resets for each new location, intentionally spans all pages
+    # of that location's fetch so a single badly-behaved location can't burn the full
+    # _MAX_RATE_LIMIT_RETRIES budget across multiple other locations.
+    rate_limit_retries = 0
 
     while True:
         page_num += 1
@@ -191,22 +222,73 @@ def _fetch_location_data(
                         location_id,
                         _MAX_RETRIES,
                     )
-                    return None
+                    return None, f"transient network error after {_MAX_RETRIES} attempts: {exc}"
 
         if resp is None:
-            return None
+            return None, "no response after retries"
 
         if resp.status_code == 401:
             logger.warning("401 on location %s — refreshing token and retrying", location_id)
-            resp = httpx.get(
-                url,
-                headers={**_auth_headers(tm.force_refresh()), "X-ISI-Start-Page": page_cursor},
-                params=params,
-                timeout=_LOCATION_TIMEOUT,
+            fresh_token = tm.force_refresh()
+            retry_resp = None
+            for attempt in range(_MAX_RETRIES):
+                try:
+                    retry_resp = httpx.get(
+                        url,
+                        headers={**_auth_headers(fresh_token), "X-ISI-Start-Page": page_cursor},
+                        params=params,
+                        timeout=_LOCATION_TIMEOUT,
+                    )
+                    break
+                except _TRANSIENT_ERRORS as exc:
+                    if attempt < _MAX_RETRIES - 1:
+                        delay = _RETRY_BACKOFF[attempt]
+                        logger.warning(
+                            "Location %s: 401-retry transient error (%s) on attempt %d"
+                            " — retrying in %.0fs",
+                            location_id,
+                            exc,
+                            attempt + 1,
+                            delay,
+                        )
+                        time.sleep(delay)
+                    else:
+                        return (
+                            None,
+                            f"transient network error after token refresh: {exc}",
+                        )
+            if retry_resp is None:
+                return None, "no response after token refresh"
+            resp = retry_resp
+
+        if resp.status_code == 404:
+            logger.warning("Location %s: 404 — no data endpoint", location_id)
+            return None, None
+
+        if resp.status_code == 429:
+            rate_limit_retries += 1
+            if rate_limit_retries > _MAX_RATE_LIMIT_RETRIES:
+                return None, f"HTTP 429: rate limited after {_MAX_RATE_LIMIT_RETRIES} retries"
+            retry_after = resp.headers.get("Retry-After")
+            try:
+                delay = float(retry_after) if retry_after else _429_BACKOFF
+            except (ValueError, TypeError):
+                # Retry-After can be an HTTP-date string ("Thu, 01 Jan ...") — fall back.
+                delay = _429_BACKOFF
+            logger.warning(
+                "Location %s: 429 rate limited — waiting %.0fs (attempt %d/%d)",
+                location_id,
+                delay,
+                rate_limit_retries,
+                _MAX_RATE_LIMIT_RETRIES,
             )
-        if resp.status_code in (404, 500):
-            logger.warning("Location %s returned %s — skipping", location_id, resp.status_code)
-            return None
+            time.sleep(delay)
+            continue
+
+        if resp.status_code >= 500:
+            logger.warning("Location %s: HTTP %s — skipping", location_id, resp.status_code)
+            return None, f"HTTP {resp.status_code}"
+
         resp.raise_for_status()
 
         page_data = resp.json()
@@ -228,8 +310,8 @@ def _fetch_location_data(
         page_cursor = next_cursor
 
     total = sum(len(p.get("readings", [])) for p in (all_data or {}).get("parameters", []))
-    logger.info("Location %s: fetched %d readings across all pages", location_id, total)
-    return all_data
+    logger.info("Location %s: fetched %d readings across %d pages", location_id, total, page_num)
+    return all_data, None
 
 
 @dlt.source(name="hydrovu")
@@ -254,7 +336,8 @@ def hydrovu_source(
       Add or remove IDs there without any code change.
 
     _stats: optional mutable dict populated with extraction counts after pipeline.run().
-      keys: rows_yielded, locations_fetched, locations_skipped, locations_no_data
+      keys: rows_yielded, locations_fetched, locations_skipped, locations_no_data,
+            locations_errored, failed_location_ids
     """
     start_ts = int(
         datetime.strptime(initial_start_date, "%Y-%m-%d").replace(tzinfo=UTC).timestamp()
@@ -342,6 +425,8 @@ def hydrovu_readings(
     skipped = 0
     fetched = 0
     no_data = 0
+    errored = 0
+    failed_ids: list[int] = []
     rows_yielded = 0
     for location in locations:
         loc_id = location["id"]
@@ -357,9 +442,19 @@ def hydrovu_readings(
             loc_start,
         )
 
-        data = _fetch_location_data(api_base_url, loc_id, loc_start, tm)
+        data, err = _fetch_location_data(api_base_url, loc_id, loc_start, tm)
+        if err is not None:
+            logger.warning(
+                "Location %s (%s) failed: %s — cursor not advanced, will retry next run",
+                loc_id,
+                location["name"],
+                err,
+            )
+            errored += 1
+            failed_ids.append(loc_id)
+            continue
         if data is None:
-            logger.warning("No readings returned for location %s (%s)", loc_id, location["name"])
+            logger.warning("Location %s (%s): no data (404)", loc_id, location["name"])
             no_data += 1
             continue
 
@@ -385,17 +480,24 @@ def hydrovu_readings(
         cursors[str(loc_id)] = max_ts
 
     logger.info(
-        "hydrovu_readings extract complete: %d locations fetched, %d skipped (allowlist), "
-        "%d rows yielded",
+        "hydrovu_readings extract complete: %d fetched, %d errored, %d no-data, "
+        "%d skipped (allowlist), %d rows yielded",
         fetched,
+        errored,
+        no_data,
         skipped,
         rows_yielded,
     )
+    # NOTE: _stats is populated here at generator end. If dlt abandons the generator
+    # mid-run (pipeline error, KeyboardInterrupt), _stats stays empty and the asset
+    # falls back to stats.get(..., 0) defaults — metadata shows zeros, no exception raised.
     if _stats is not None:
         _stats["rows_yielded"] = rows_yielded
         _stats["locations_fetched"] = fetched
         _stats["locations_skipped"] = skipped
         _stats["locations_no_data"] = no_data
+        _stats["locations_errored"] = errored
+        _stats["failed_location_ids"] = failed_ids
 
 
 def build_pipeline() -> dlt.Pipeline:
