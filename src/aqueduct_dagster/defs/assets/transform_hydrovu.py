@@ -70,7 +70,7 @@ def _gcs_bucket_url() -> str:
     return toml.load(config_path)["destination"]["filesystem"]["bucket_url"]
 
 
-def _gcs_filesystem(project: str = None) -> gcsfs.GCSFileSystem:
+def _gcs_filesystem(project: str = "") -> gcsfs.GCSFileSystem:
     if project:
         return gcsfs.GCSFileSystem(project=project, token="google_default")
     else:
