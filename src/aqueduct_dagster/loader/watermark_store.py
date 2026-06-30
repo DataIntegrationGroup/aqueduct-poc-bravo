@@ -39,7 +39,7 @@ from datetime import datetime
 import gcsfs
 from dagster import AssetExecutionContext
 
-_FROST_WATERMARKS_PATH = "raw_pvacd/_frost_watermarks.json"
+_FROST_WATERMARKS_FILENAME = "_frost_watermarks.json"
 _SAVE_RETRIES = 3
 _SAVE_BACKOFF = (1.0, 2.0, 4.0)
 
@@ -83,10 +83,11 @@ class FrostWatermarkStore(WatermarkStore):
         context: AssetExecutionContext,
         fs: gcsfs.GCSFileSystem,
         bucket: str,
+        dataset: str,
     ) -> None:
         self._context = context
         self._fs = fs
-        self._bucket = bucket
+        self._watermarks_path = f"{bucket}/{dataset}/{_FROST_WATERMARKS_FILENAME}"
         self._cache: dict[str, datetime] = {}
         self._loaded = False
 
@@ -94,21 +95,21 @@ class FrostWatermarkStore(WatermarkStore):
         """Read GCS watermark file into cache. No-op after first call per run."""
         if self._loaded:
             return
-        path = f"{self._bucket}/{_FROST_WATERMARKS_PATH}"
         try:
-            with self._fs.open(path) as f:
+            with self._fs.open(self._watermarks_path) as f:
                 raw: dict[str, str] = json.load(f)
             self._cache = {k: datetime.fromisoformat(v) for k, v in raw.items()}
             self._context.log.info("Loaded FROST watermarks from GCS: %d entries", len(self._cache))
         except (FileNotFoundError, json.JSONDecodeError):
             self._context.log.info(
-                "No FROST watermark file at %s — first run, starting fresh", path
+                "No FROST watermark file at %s — first run, starting fresh",
+                self._watermarks_path,
             )
         self._loaded = True
 
     def _save(self) -> None:
         """Write cache to GCS atomically (write tmp → rename) with retry."""
-        final_path = f"{self._bucket}/{_FROST_WATERMARKS_PATH}"
+        final_path = self._watermarks_path
         tmp_path = f"{final_path}.tmp"
         last_exc: Exception | None = None
         for attempt in range(_SAVE_RETRIES):

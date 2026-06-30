@@ -56,7 +56,7 @@ def _frost_load(context: AssetExecutionContext, bundles: list[CanonicalBundle]) 
         frost_url = frost_url.rstrip("/") + "/v1.1"
     service = fsc.SensorThingsService(frost_url)
     bucket = _gcs_bucket_url().replace("gs://", "")
-    watermarks = FrostWatermarkStore(context, _gcs_filesystem(), bucket)
+    watermarks = FrostWatermarkStore(context, _gcs_filesystem(), bucket, dataset="raw_pvacd")
     loader = FrostStaClientLoader(service, watermarks)
 
     total_posted = 0
