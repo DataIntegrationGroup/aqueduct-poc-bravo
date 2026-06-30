@@ -12,6 +12,8 @@ import json
 from datetime import UTC, datetime
 from unittest.mock import MagicMock
 
+import pytest
+
 from aqueduct_dagster.loader.watermark_store import (
     _FROST_WATERMARKS_PATH,
     FrostWatermarkStore,
@@ -140,7 +142,7 @@ def test_set_then_get_returns_updated_value():
     assert store.get("ds-1") == ts
 
 
-def test_set_writes_correct_path():
+def test_set_writes_to_tmp_then_renames():
     store, mock_fs = _make_store(gcs_content=None)
     mock_fs.open.side_effect = None
     write_buf = io.StringIO()
@@ -150,8 +152,41 @@ def test_set_writes_correct_path():
     ts = datetime(2026, 6, 20, tzinfo=UTC)
     store.set("ds-1", ts)
 
-    expected_path = f"my-bucket/{_FROST_WATERMARKS_PATH}"
-    mock_fs.open.assert_called_with(expected_path, "w")
+    tmp_path = f"my-bucket/{_FROST_WATERMARKS_PATH}.tmp"
+    final_path = f"my-bucket/{_FROST_WATERMARKS_PATH}"
+    mock_fs.open.assert_called_with(tmp_path, "w")
+    mock_fs.rename.assert_called_once_with(tmp_path, final_path)
+
+
+def test_save_retries_on_transient_failure():
+    store, mock_fs = _make_store(gcs_content=None)
+    store._loaded = True
+    write_buf = io.StringIO()
+    # First open call raises, second succeeds
+    mock_fs.open.side_effect = [
+        OSError("transient"),
+        MagicMock(
+            __enter__=lambda _: write_buf,
+            __exit__=MagicMock(return_value=False),
+        ),
+    ]
+
+    ts = datetime(2026, 6, 20, tzinfo=UTC)
+    store.set("ds-1", ts)  # should not raise — retry succeeds
+
+    assert mock_fs.open.call_count == 2
+
+
+def test_save_raises_after_all_retries_exhausted():
+    store, mock_fs = _make_store(gcs_content=None)
+    store._loaded = True
+    mock_fs.open.side_effect = OSError("persistent failure")
+
+    ts = datetime(2026, 6, 20, tzinfo=UTC)
+    with pytest.raises(OSError):
+        store.set("ds-1", ts)
+
+    assert mock_fs.open.call_count == 3  # _SAVE_RETRIES attempts
 
 
 def test_multiple_set_calls_accumulate_in_cache():
