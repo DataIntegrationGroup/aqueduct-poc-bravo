@@ -172,7 +172,7 @@ class FrostLoader(abc.ABC):
             return result
 
         for chunk in _chunked(ordered, self.chunk_size):
-            _with_retry(lambda c=chunk: self._post_data_array(datastream_id, c))
+            self._post_data_array(datastream_id, chunk)
             chunk_max = chunk[-1].phenomenon_time
             self.watermarks.set(datastream_key, chunk_max)
             result.posted += len(chunk)
@@ -377,7 +377,15 @@ class FrostStaClientLoader(FrostLoader):
             )
         doc = DataArrayDocument()
         doc.add_data_array_value(dav)
-        self.service.observations().create(doc)
+        results = self.service.observations().create(doc)
+        # FROST Data Array returns HTTP 200 even on partial failure — each item in
+        # the response list is either a URL (posted) or an error string (rejected).
+        errors = [r.self_link for r in results if not str(r.self_link or "").startswith("http")]
+        if errors:
+            raise RuntimeError(
+                f"FROST rejected {len(errors)}/{len(results)} observations "
+                f"in datastream {datastream_id}: {errors[:3]}"
+            )
 
     # ── watermark recovery ───────────────────────────────────────────────────
 

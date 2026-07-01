@@ -20,7 +20,11 @@ from aqueduct_dagster.canonical.canonical_model import (
     CanonicalSensor,
     CanonicalThing,
 )
-from aqueduct_dagster.loader.frost_loader import FrostLoader, ObservationRecord
+from aqueduct_dagster.loader.frost_loader import (
+    FrostLoader,
+    FrostStaClientLoader,
+    ObservationRecord,
+)
 from aqueduct_dagster.loader.watermark_store import InMemoryWatermarkStore
 
 # ── test double ─────────────────────────────────────────────────────────────
@@ -176,3 +180,52 @@ def test_ensure_datastream_succeeds_when_entity_already_exists(mock_sleep):
     loader.ensure_datastream(_make_spec())
     assert loader.call_counts.get("create_location", 0) == 0
     mock_sleep.assert_not_called()
+
+
+# ── _post_data_array response body checks ────────────────────────────────────
+
+
+class _ObsStub:
+    """Minimal Observation-like object with a self_link attribute."""
+
+    def __init__(self, self_link: str) -> None:
+        self.self_link = self_link
+
+
+def _make_fsc_loader_with_post_result(post_results: list) -> FrostStaClientLoader:
+    """Build a FrostStaClientLoader whose observations().create() returns post_results."""
+    from unittest.mock import MagicMock
+
+    service = MagicMock()
+    service.observations.return_value.create.return_value = post_results
+    return FrostStaClientLoader(service, InMemoryWatermarkStore())
+
+
+def test_post_data_array_raises_on_partial_frost_rejection():
+    """RuntimeError raised when FROST returns error strings for some observations."""
+    results = [
+        _ObsStub("http://frost/v1.1/Observations(1)"),
+        _ObsStub("error: violates uniqueness constraint"),
+        _ObsStub("http://frost/v1.1/Observations(3)"),
+    ]
+    loader = _make_fsc_loader_with_post_result(results)
+    with pytest.raises(RuntimeError, match="FROST rejected 1/3"):
+        loader._post_data_array("42", [])
+
+
+def test_post_data_array_raises_on_full_frost_rejection():
+    """RuntimeError raised when all observations are rejected by FROST."""
+    results = [_ObsStub("error: bad request")] * 5
+    loader = _make_fsc_loader_with_post_result(results)
+    with pytest.raises(RuntimeError, match="FROST rejected 5/5"):
+        loader._post_data_array("42", [])
+
+
+def test_post_data_array_does_not_raise_on_full_success():
+    """No exception raised when all observations are accepted (all URLs in response)."""
+    results = [
+        _ObsStub("http://frost/v1.1/Observations(1)"),
+        _ObsStub("http://frost/v1.1/Observations(2)"),
+    ]
+    loader = _make_fsc_loader_with_post_result(results)
+    loader._post_data_array("42", [])  # must not raise
